@@ -40,7 +40,56 @@ def state_machine():
     """Returns all valid task states."""
     return jsonify({s.name: s.value for s in TaskState}), 200
 
+@app.route("/tasks", methods=["POST"])
+def create_task():
+    data = request.json
+    try:
+        # === Strict Input Validation Section ===
+        required_fields = ["id", "title", "description", "category", "scheduledDate", "priority"]
+        missing_fields = [f for f in required_fields if f not in data]
+        if missing_fields:
+            return jsonify({"error": f"Missing fields: {', '.join(missing_fields)}"}), 400
 
+        # Check category validity
+        try:
+            category = TaskCategory(data["category"])
+        except Exception:
+            return jsonify({"error": "Invalid category. Use one of: outdoor, indoor, delivery, travel"}), 400
+
+        # Validate scheduledDate format
+        try:
+            scheduled_date = datetime.fromisoformat(data["scheduledDate"])
+        except Exception:
+            return jsonify({"error": "scheduledDate must be in ISO format (YYYY-MM-DDTHH:MM:SS)"}), 400
+
+        # Validate priority is an integer
+        if not isinstance(data["priority"], int):
+            return jsonify({"error": "priority must be an integer"}), 400
+
+        location = data.get("location")
+        if not location:
+            loc_info = get_location()
+            location = loc_info['city']
+
+        # === Proceed to creating the Task as before ===
+        task = Task(
+            id=data["id"],
+            title=data["title"],
+            description=data["description"],
+            category=category,
+            scheduled_date=scheduled_date,
+            location=location,
+            state=TaskState.SCHEDULED,
+            priority=data["priority"]
+        )
+        store.add(task)
+        return jsonify({"message": "Task created"}), 201
+
+    except Exception as e:
+        logger.error(str(e))
+        return jsonify({"error": "Invalid input"}), 400
+
+'''
 @app.route("/tasks", methods=["POST"])
 def create_task():
     data = request.json
@@ -64,7 +113,7 @@ def create_task():
     except Exception as e:
         logger.error(str(e))
         return jsonify({"error": "Invalid input"}), 400
-
+'''
 
 @app.route("/tasks", methods=["GET"])
 def list_tasks():
